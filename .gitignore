@@ -1,0 +1,14 @@
+# Lixo de SO
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editores
+.idea/
+.vscode/
+*.iml
+
+# Segredos (reforço — o app também ignora)
+**/key.properties
+**/*.jks
+**/*.keystore

@@ -1,0 +1,8 @@
+# Copie para android/key.properties e preencha. NÃO versione o key.properties real.
+# Gere o keystore com:
+#   keytool -genkey -v -keystore audiocar-release.jks -keyalg RSA -keysize 2048 \
+#           -validity 10000 -alias audiocar
+storeFile=../audiocar-release.jks
+storePassword=ALTERE_ME
+keyAlias=audiocar
+keyPassword=ALTERE_ME

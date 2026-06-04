@@ -1,0 +1,86 @@
+name: Android Release
+
+# Dispara ao criar uma tag de versão (ex.: v0.1.0) ou manualmente pela aba Actions.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # necessário para anexar o APK à GitHub Release
+    defaults:
+      run:
+        working-directory: audiocar_app
+    env:
+      KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+      KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.44.1
+          cache: true
+
+      - name: Aceitar licenças do Android SDK
+        run: yes | sdkmanager --licenses || true
+
+      - name: Instalar NDK e CMake (flutter_soloud usa C++ nativo)
+        run: sdkmanager "ndk;27.0.12077973" "cmake;3.22.1"
+
+      # --- Assinatura: só roda se os secrets existirem. Sem secrets, o build
+      #     cai para a debug key (gradle) e ainda produz artefatos testáveis. ---
+      - name: Decodificar keystore
+        if: env.KEYSTORE_B64 != ''
+        run: echo "$KEYSTORE_B64" | base64 --decode > audiocar-release.jks
+
+      - name: Criar key.properties
+        if: env.KEYSTORE_B64 != ''
+        run: |
+          cat > android/key.properties <<EOF
+          storeFile=../audiocar-release.jks
+          storePassword=${STORE_PASSWORD}
+          keyAlias=${KEY_ALIAS}
+          keyPassword=${KEY_PASSWORD}
+          EOF
+
+      - name: Dependências
+        run: flutter pub get
+
+      - name: Build APK (release)
+        run: flutter build apk --release
+
+      - name: Build AAB (release, para a Play Store)
+        run: flutter build appbundle --release
+
+      - name: Publicar APK como artefato
+        uses: actions/upload-artifact@v4
+        with:
+          name: audiocar-apk
+          path: audiocar_app/build/app/outputs/flutter-apk/app-release.apk
+
+      - name: Publicar AAB como artefato
+        uses: actions/upload-artifact@v4
+        with:
+          name: audiocar-aab
+          path: audiocar_app/build/app/outputs/bundle/release/app-release.aab
+
+      # Em tags v*, anexa o APK a uma GitHub Release.
+      - name: Anexar APK à Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: audiocar_app/build/app/outputs/flutter-apk/app-release.apk

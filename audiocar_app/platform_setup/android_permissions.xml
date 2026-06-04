@@ -1,0 +1,18 @@
+<!--
+  Cole estas permissões em:
+  android/app/src/main/AndroidManifest.xml
+  (dentro de <manifest>, antes da tag <application>)
+
+  Requisitos 4.1 (GPS) e 9 (privacidade) da RFP.
+-->
+<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+<!-- Opcional: leitura de velocidade em segundo plano (ver nota da Seção 4.1).
+     Exige justificativa na publicação da Play Store. -->
+<!-- <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" /> -->
+
+<!-- minSdkVersion recomendado: 23+ (flutter_soloud / áudio em baixa latência).
+     Ajuste em android/app/build.gradle:
+       defaultConfig { minSdkVersion 23 }
+-->

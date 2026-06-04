@@ -1,0 +1,38 @@
+name: audiocar_app
+description: "AUDIOCAR - Simulador de som de motor com GPS, dashboard e 3D (núcleo MVP)."
+publish_to: "none"
+version: 0.1.0+1
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+
+  # Captura de velocidade via GPS (Requisito 4.1 da RFP)
+  geolocator: ^13.0.1
+
+  # Motor de áudio em tempo real com controle de pitch/volume (Requisito 4.2)
+  #  - Android/iOS/desktop: flutter_soloud (nativo)
+  #  - Navegador: Web Audio API via package:web
+  flutter_soloud: ^3.1.10
+  web: ^1.1.0
+  flutter_3d_controller: ^2.3.0
+  flutter_blue_plus: ^2.3.5
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  # Modelo glTF/GLB do veículo (Requisito 6.2 da RFP).
+  # Pasta de áudio: um engine_loop real, se presente, é usado automaticamente.
+  assets:
+    - assets/models/car.glb
+    - assets/audio/
+    # Banco "Sons de Motores" (Requisitos 4.3 e 11 da RFP).
+    - assets/sounds/

@@ -1,0 +1,19 @@
+<!--
+  Cole estas chaves em: ios/Runner/Info.plist (dentro do <dict> raiz).
+  Requisitos 4.1 (GPS) e 9 (privacidade/consentimento) da RFP.
+  O texto de uso é exibido ao usuário no pedido de consentimento.
+-->
+<key>NSLocationWhenInUseUsageDescription</key>
+<string>O AUDIOCAR usa sua localização para medir a velocidade e sincronizar o som do motor em tempo real.</string>
+
+<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+<string>O AUDIOCAR pode usar a localização em segundo plano para manter o som do motor enquanto você dirige.</string>
+
+<!-- Permite áudio contínuo. Adicione 'audio' ao array UIBackgroundModes se for
+     manter o som com o app em segundo plano:
+<key>UIBackgroundModes</key>
+<array>
+  <string>audio</string>
+  <string>location</string>
+</array>
+-->
