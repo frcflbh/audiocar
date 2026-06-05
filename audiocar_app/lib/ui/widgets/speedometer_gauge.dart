@@ -84,7 +84,7 @@ class _SpeedometerPainter extends CustomPainter {
       ..shader = const SweepGradient(
         startAngle: _startAngle,
         endAngle: _startAngle + _sweep,
-        colors: [CockpitColors.accent, Color(0xFF6FD0FF)],
+        colors: [CockpitColors.goldDeep, CockpitColors.accent, Color(0xFFE6C97A)],
       ).createShader(Rect.fromCircle(center: center, radius: radius))
       ..style = PaintingStyle.stroke
       ..strokeWidth = 12

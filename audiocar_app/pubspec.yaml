@@ -33,7 +33,7 @@ flutter:
   # Modelo glTF/GLB do veículo (Requisito 6.2 da RFP).
   # Pasta de áudio: um engine_loop real, se presente, é usado automaticamente.
   assets:
-    - assets/models/car.glb
+    - assets/models/
     - assets/audio/
     # Banco "Sons de Motores" (Requisitos 4.3 e 11 da RFP).
     - assets/sounds/

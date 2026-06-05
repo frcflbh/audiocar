@@ -30,8 +30,14 @@ class EngineProfile {
   final String? sampleAsset;
   final double sampleRefRpm;
 
+  /// Modelo 3D glTF/GLB real do veículo (opcional). Se ausente, o app usa o
+  /// render estilizado. Slot para um asset devidamente licenciado.
+  final String? modelAsset;
+
   final List<EngineEffect> effects;
   final String packId;
+
+  bool get isTurbo => induction == Induction.turbo;
 
   const EngineProfile({
     required this.id,
@@ -48,6 +54,7 @@ class EngineProfile {
     required this.packId,
     this.sampleAsset,
     this.sampleRefRpm = 1200,
+    this.modelAsset,
     this.effects = const [],
   });
 
@@ -81,6 +88,7 @@ class EngineProfile {
         packId: j['packId'] as String,
         sampleAsset: j['sampleAsset'] as String?,
         sampleRefRpm: (j['sampleRefRpm'] as num?)?.toDouble() ?? 1200,
+        modelAsset: j['modelAsset'] as String?,
         effects: ((j['effects'] as List?) ?? const [])
             .map((e) => EngineEffect.values.byName(e as String))
             .toList(),

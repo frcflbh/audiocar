@@ -36,10 +36,10 @@ class _Car3DViewState extends State<Car3DView> {
   }
 
   Future<void> _checkModel() async {
-    // No web, o visualizador glTF (model-viewer) é carregado de um CDN e é
-    // bloqueado quando a página está cross-origin-isolated (cabeçalhos COOP/COEP
-    // exigidos pelo áudio Web). Por isso, no web usamos o render estilizado
-    // (rotacionável). No mobile/desktop, o 3D é nativo e usa o GLB real.
+    // No web, o model-viewer (renderer glTF via web component) é instável em
+    // container pequeno (renderiza em branco). Usamos o render estilizado,
+    // confiável e atraente. No MOBILE/desktop, o GLB real é renderizado
+    // nativamente pelo flutter_3d_controller (onde os modelos baixados aparecem).
     if (kIsWeb) {
       if (mounted) setState(() => _hasModel = false);
       return;

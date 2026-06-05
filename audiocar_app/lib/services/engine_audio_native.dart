@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 import 'dart:typed_data';
 
@@ -21,7 +22,9 @@ class SoLoudEngineAudio implements EngineAudio {
   bool _ready = false;
 
   static const int _sampleRate = 44100;
-  static const double _refRpm = 900; // RPM de referência da síntese procedural
+  // RPM de referência da síntese (onde a frequência base do loop corresponde
+  // à frequência de combustão do motor). Ver _buildEngineWav.
+  static const double _synthRefRpm = 1500;
 
   /// Sample de motor real (opcional). Se presente, é usado no lugar da síntese.
   static const String _sampleAsset = 'assets/audio/engine_loop.wav';
@@ -30,9 +33,29 @@ class SoLoudEngineAudio implements EngineAudio {
   static const double _sampleRefRpm = 1200;
 
   bool _usingSample = false;
+  EngineSoundCharacter _char = const EngineSoundCharacter();
 
   @override
   bool get isReady => _ready;
+
+  @override
+  void setCharacter(EngineSoundCharacter character) {
+    _char = character;
+    // Reconstrói o loop com a frequência base do novo motor (timbre por carro).
+    if (_ready && !_usingSample) {
+      unawaited(_reloadSynth());
+    }
+  }
+
+  Future<void> _reloadSynth() async {
+    final oldHandle = _handle;
+    final oldSource = _source;
+    final bytes = _buildEngineWav();
+    _source = await _soloud.loadMem('audiocar_engine', bytes);
+    _handle = await _soloud.play(_source!, looping: true, volume: 0.0);
+    if (oldHandle != null) await _soloud.stop(oldHandle);
+    if (oldSource != null) await _soloud.disposeSource(oldSource);
+  }
 
   @override
   Future<void> init() async {
@@ -68,7 +91,7 @@ class SoLoudEngineAudio implements EngineAudio {
   void update({required double rpm, required double throttle}) {
     final handle = _handle;
     if (!_ready || handle == null) return;
-    final double refRpm = _usingSample ? _sampleRefRpm : _refRpm;
+    final double refRpm = _usingSample ? _sampleRefRpm : _synthRefRpm;
     final double playSpeed = (rpm / refRpm).clamp(0.4, 4.5);
     _soloud.setRelativePlaySpeed(handle, playSpeed);
     final double volume = (0.22 + throttle * 0.78).clamp(0.0, 1.0);
@@ -92,7 +115,10 @@ class SoLoudEngineAudio implements EngineAudio {
 
   Uint8List _buildEngineWav() {
     const int n = _sampleRate; // 1.0 s
-    const double f0 = 60.0; // Hz inteiro => loop sem clique
+    // Frequência base = frequência de combustão no RPM de referência:
+    // (1500/60) * (cilindros/2) = 12.5 * cilindros. Inteiro p/ cilindros pares
+    // => loop sem clique. Mais cilindros = som mais "cheio" e agudo.
+    final double f0 = (12.5 * _char.cylinders).clamp(25.0, 200.0);
     const List<double> harmonicAmps = [
       1.0, 0.62, 0.46, 0.32, 0.24, 0.17, 0.12, 0.08,
     ];

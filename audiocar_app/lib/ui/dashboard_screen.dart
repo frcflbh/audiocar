@@ -15,7 +15,6 @@ import 'login_screen.dart';
 import 'widgets/car_3d_view.dart';
 import 'widgets/rpm_gauge.dart';
 import 'widgets/speedometer_gauge.dart';
-import 'widgets/status_footer.dart';
 
 /// Dashboard cockpit — integra GPS → RPM → áudio → visual
 /// (Seções 4, 5 e 8 da RFP).
@@ -72,6 +71,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _profile = profile;
     _rpmModel = RpmModel.fromProfile(profile);
     _displayRpm = profile.idleRpm;
+    // Caráter sonoro do motor (timbre por nº de cilindros + turbo).
+    _engine.setCharacter(EngineSoundCharacter(
+      cylinders: profile.cylinders,
+      turbo: profile.isTurbo,
+    ));
     if (notify && mounted) setState(() {});
   }
 
@@ -360,55 +364,35 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final int gear = _rpmModel.gearForSpeed(_displaySpeed);
-
     return Scaffold(
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _topBar(),
-              _statusLine(),
-              const SizedBox(height: 6),
-              // Modelo 3D (topo).
+              // ESQUERDA: dois quadrados (velocímetro e RPM).
               Expanded(
-                flex: 5,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: Car3DView(rpm: _displayRpm),
-                ),
-              ),
-              const SizedBox(height: 10),
-              // HUD digital de velocidade (centro).
-              _hud(),
-              const SizedBox(height: 10),
-              // Gauges (base).
-              Expanded(
-                flex: 4,
-                child: Row(
+                flex: 26,
+                child: Column(
                   children: [
-                    Expanded(child: SpeedometerGauge(value: _displaySpeed)),
-                    const SizedBox(width: 12),
-                    Expanded(child: RpmGauge(value: _displayRpm)),
+                    Expanded(
+                      child: _gaugeCard(
+                          'VELOCÍMETRO', SpeedometerGauge(value: _displaySpeed)),
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: _gaugeCard('RPM', RpmGauge(value: _displayRpm)),
+                    ),
                   ],
                 ),
               ),
-              const SizedBox(height: 10),
-              if (_demoMode) _demoSlider(),
-              if (_demoMode) const SizedBox(height: 8),
-              _modeSelector(),
-              const SizedBox(height: 10),
-              // Rodapé (toque abre a Garagem / Sons de Motores).
-              GestureDetector(
-                onTap: _openGarage,
-                child: StatusFooter(
-                  mode: _modeLabel,
-                  vehicle: _profile?.name ?? 'Selecionar',
-                  gear: gear,
-                  obd2Connected: _origin == SpeedOrigin.obd2,
-                ),
-              ),
+              const SizedBox(width: 12),
+              // CENTRO: carro 3D do motor selecionado.
+              Expanded(flex: 58, child: _centerStage()),
+              const SizedBox(width: 12),
+              // DIREITA: menu de navegação.
+              _rightMenu(),
             ],
           ),
         ),
@@ -416,58 +400,220 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _topBar() {
-    return Row(
-      children: [
-        const Text(
-          'AUDIOCAR',
-          style: TextStyle(
-            color: CockpitColors.textPrimary,
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1.5,
+  BoxDecoration _cardDecoration() => BoxDecoration(
+        color: CockpitColors.panel,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: CockpitColors.accentSoft),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
           ),
-        ),
-        const Spacer(),
-        _audioButton(),
-        const SizedBox(width: 4),
-        IconButton(
-          onPressed: _openGarage,
-          icon: const Icon(Icons.garage, color: CockpitColors.textMuted),
-          tooltip: 'Garagem',
-        ),
-        const SizedBox(width: 2),
-        _accountMenu(),
-      ],
-    );
-  }
-
-  Widget _statusLine() {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Text(
-        _status,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(color: CockpitColors.textMuted, fontSize: 12),
-      ),
-    );
-  }
-
-  Widget _audioButton() {
-    if (_audioReady) {
-      return const IconButton(
-        onPressed: null,
-        icon: Icon(Icons.volume_up, color: CockpitColors.accent),
-        tooltip: 'Áudio ativo',
+        ],
       );
-    }
-    return FilledButton.tonalIcon(
-      onPressed: _enableAudio,
-      icon: const Icon(Icons.volume_up, size: 18),
-      label: const Text('Áudio'),
-      style: FilledButton.styleFrom(
-        visualDensity: VisualDensity.compact,
+
+  Widget _cardLabel(String text) => Text(
+        text,
+        style: const TextStyle(
+          color: CockpitColors.accent,
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 1.5,
+        ),
+      );
+
+  Widget _gaugeCard(String label, Widget gauge) {
+    return Container(
+      decoration: _cardDecoration(),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _cardLabel(label),
+          const SizedBox(height: 6),
+          Expanded(child: gauge),
+        ],
       ),
+    );
+  }
+
+  Widget _centerStage() {
+    return Container(
+      decoration: _cardDecoration(),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          // Cabeçalho: motor selecionado + velocidade digital.
+          Row(
+            children: [
+              const Icon(Icons.directions_car_filled,
+                  color: CockpitColors.accent, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _profile?.name ?? 'Selecionar motor',
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: CockpitColors.textPrimary,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    Text(
+                      _profile?.specLabel ?? 'Abra a garagem para escolher',
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          color: CockpitColors.textMuted, fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                _displaySpeed.round().toString(),
+                style: const TextStyle(
+                  color: CockpitColors.accent,
+                  fontSize: 40,
+                  fontWeight: FontWeight.w900,
+                  height: 1.0,
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.only(left: 4, top: 16),
+                child: Text('km/h',
+                    style: TextStyle(
+                        color: CockpitColors.textMuted, fontSize: 12)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          // Carro 3D rotacional do motor selecionado.
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Car3DView(
+                key: ValueKey(_profile?.id ?? 'default'),
+                rpm: _displayRpm,
+                modelAsset: _profile?.modelAsset ?? 'assets/models/car.glb',
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          _modeSelector(),
+          if (_demoMode) ...[
+            const SizedBox(height: 4),
+            _demoSlider(),
+          ],
+          const SizedBox(height: 4),
+          Text(
+            _status,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style:
+                const TextStyle(color: CockpitColors.textMuted, fontSize: 11),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _rightMenu() {
+    return Container(
+      width: 112,
+      decoration: _cardDecoration(),
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+      child: Column(
+        children: [
+          const Text(
+            'AUDIO\nCAR',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: CockpitColors.textPrimary,
+              fontSize: 15,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.5,
+              height: 1.05,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(height: 2, width: 28, color: CockpitColors.accent),
+          const Spacer(),
+          _navButton(
+            icon: _audioReady ? Icons.volume_up : Icons.volume_off,
+            label: 'Áudio',
+            active: _audioReady,
+            onTap: _enableAudio,
+          ),
+          const SizedBox(height: 14),
+          _navButton(
+            icon: Icons.garage,
+            label: 'Garagem',
+            onTap: _openGarage,
+          ),
+          const SizedBox(height: 14),
+          _accountNavButton(),
+          const Spacer(),
+        ],
+      ),
+    );
+  }
+
+  Widget _navButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    bool active = false,
+  }) {
+    final color = active ? CockpitColors.accent : CockpitColors.textPrimary;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Column(
+        children: [
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              color: active
+                  ? CockpitColors.accentSoft
+                  : CockpitColors.background,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: CockpitColors.accentSoft),
+            ),
+            child: Icon(icon, color: color),
+          ),
+          const SizedBox(height: 4),
+          Text(label,
+              style: TextStyle(
+                  color: color, fontSize: 11, fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
+  }
+
+  /// Botão de conta no menu direito (abre o popup de conta/login).
+  Widget _accountNavButton() {
+    return AnimatedBuilder(
+      animation: authService,
+      builder: (context, _) {
+        final label = authService.isGuest ? 'Entrar' : 'Conta';
+        return Column(
+          children: [
+            _accountMenu(),
+            const SizedBox(height: 4),
+            Text(label,
+                style: const TextStyle(
+                    color: CockpitColors.textPrimary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600)),
+          ],
+        );
+      },
     );
   }
 
@@ -581,51 +727,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ];
           },
-          child: CircleAvatar(
-            radius: 16,
-            backgroundColor: guest
-                ? CockpitColors.gaugeTrack
-                : (user!.isPremium
-                    ? CockpitColors.accent
-                    : CockpitColors.accentSoft),
+          child: Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              color: guest
+                  ? CockpitColors.background
+                  : (user!.isPremium
+                      ? CockpitColors.accent
+                      : CockpitColors.accentSoft),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: CockpitColors.accentSoft),
+            ),
+            alignment: Alignment.center,
             child: initial != null
                 ? Text(initial,
-                    style: const TextStyle(
-                        color: Colors.white, fontWeight: FontWeight.bold))
-                : const Icon(Icons.person,
-                    size: 18, color: CockpitColors.textMuted),
+                    style: TextStyle(
+                        color: user!.isPremium
+                            ? Colors.white
+                            : CockpitColors.textPrimary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18))
+                : const Icon(Icons.person, color: CockpitColors.accent),
           ),
         );
       },
-    );
-  }
-
-  Widget _hud() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      decoration: BoxDecoration(
-        color: CockpitColors.panel,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-            color: CockpitColors.accent.withValues(alpha: 0.25)),
-      ),
-      child: Column(
-        children: [
-          Text(
-            _displaySpeed.round().toString(),
-            style: const TextStyle(
-              color: CockpitColors.accent,
-              fontSize: 56,
-              fontWeight: FontWeight.w800,
-              height: 1.0,
-            ),
-          ),
-          const Text('km/h · HUD',
-              style:
-                  TextStyle(color: CockpitColors.textMuted, fontSize: 12)),
-        ],
-      ),
     );
   }
 

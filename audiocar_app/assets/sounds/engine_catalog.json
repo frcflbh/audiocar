@@ -24,6 +24,14 @@
       "isFree": false,
       "priceCents": 1990,
       "isPremium": true
+    },
+    {
+      "id": "legends",
+      "name": "Lendas",
+      "description": "Ícones reais: F40, 911, Mustang GT e M3.",
+      "isFree": false,
+      "priceCents": 2990,
+      "isPremium": true
     }
   ],
   "profiles": [
@@ -170,6 +178,78 @@
       "packId": "gt",
       "sampleRefRpm": 1400,
       "effects": ["turboWhistle", "blowoff", "backfire"]
+    },
+    {
+      "id": "ferrari_f40",
+      "name": "Ferrari F40",
+      "category": "Supercarro",
+      "displacementL": 2.9,
+      "cylinders": 8,
+      "layout": "vee",
+      "induction": "turbo",
+      "idleRpm": 950,
+      "redlineRpm": 7750,
+      "maxRpm": 8000,
+      "gearTopSpeedKmh": [65, 110, 160, 215, 324],
+      "packId": "legends",
+      "modelAsset": "assets/models/ferrari_f40.glb",
+      "sampleAsset": "assets/audio/ferrari_f40.wav",
+      "sampleRefRpm": 1500,
+      "effects": ["turboWhistle", "blowoff", "backfire"]
+    },
+    {
+      "id": "porsche_911",
+      "name": "Porsche 911",
+      "category": "Esportivo",
+      "displacementL": 4.0,
+      "cylinders": 6,
+      "layout": "flat",
+      "induction": "naturalAspirated",
+      "idleRpm": 900,
+      "redlineRpm": 9000,
+      "maxRpm": 9200,
+      "gearTopSpeedKmh": [60, 105, 150, 195, 250, 318],
+      "packId": "legends",
+      "modelAsset": "assets/models/porsche_911.glb",
+      "sampleAsset": "assets/audio/porsche_911.wav",
+      "sampleRefRpm": 1500,
+      "effects": []
+    },
+    {
+      "id": "ford_mustang_gt",
+      "name": "Ford Mustang GT",
+      "category": "Muscle",
+      "displacementL": 5.0,
+      "cylinders": 8,
+      "layout": "vee",
+      "induction": "naturalAspirated",
+      "idleRpm": 800,
+      "redlineRpm": 7400,
+      "maxRpm": 7600,
+      "gearTopSpeedKmh": [55, 95, 140, 185, 230, 250],
+      "packId": "legends",
+      "modelAsset": "assets/models/ford_mustang_gt.glb",
+      "sampleAsset": "assets/audio/ford_mustang_gt.wav",
+      "sampleRefRpm": 1000,
+      "effects": ["backfire"]
+    },
+    {
+      "id": "bmw_m3",
+      "name": "BMW M3",
+      "category": "Esportivo",
+      "displacementL": 3.0,
+      "cylinders": 6,
+      "layout": "inline",
+      "induction": "turbo",
+      "idleRpm": 800,
+      "redlineRpm": 7200,
+      "maxRpm": 7400,
+      "gearTopSpeedKmh": [55, 95, 140, 185, 235, 290],
+      "packId": "legends",
+      "modelAsset": "assets/models/bmw_m3.glb",
+      "sampleAsset": "assets/audio/bmw_m3.wav",
+      "sampleRefRpm": 1300,
+      "effects": ["turboWhistle", "blowoff"]
     }
   ]
 }

@@ -10,29 +10,36 @@ EngineAudio createEngineAudio() => WebEngineAudio();
 
 /// Motor de áudio para navegador (Web Audio API).
 ///
-/// Se houver um sample real em [_sampleAsset], ele é decodificado e tocado em
-/// loop, com `playbackRate` seguindo o RPM (pitch). Caso contrário, faz
-/// *fallback* para uma síntese com dois osciladores + filtro.
+/// Sintetiza o som com base na frequência de combustão do motor selecionado
+/// (nº de cilindros), com um assobio de turbo opcional — dando timbre distinto
+/// a cada carro. Se houver um sample real em [sampleAsset] padrão, ele é tocado
+/// em loop com `playbackRate` seguindo o RPM.
 class WebEngineAudio implements EngineAudio {
   web.AudioContext? _ctx;
   web.GainNode? _gain;
 
-  // Caminho com sample real.
   web.AudioBufferSourceNode? _bufferSource;
   bool _usingSample = false;
 
-  // Caminho de síntese (fallback).
   web.OscillatorNode? _osc1;
   web.OscillatorNode? _osc2;
   web.BiquadFilterNode? _filter;
 
+  // Assobio de turbo.
+  web.OscillatorNode? _whistle;
+  web.GainNode? _whistleGain;
+
   bool _ready = false;
+  EngineSoundCharacter _char = const EngineSoundCharacter();
 
   static const String _sampleAsset = 'assets/audio/engine_loop.wav';
   static const double _sampleRefRpm = 1200;
 
   @override
   bool get isReady => _ready;
+
+  @override
+  void setCharacter(EngineSoundCharacter character) => _char = character;
 
   @override
   Future<void> init() async {
@@ -43,7 +50,14 @@ class WebEngineAudio implements EngineAudio {
     gain.gain.value = 0;
     gain.connect(ctx.destination);
 
-    // Tenta carregar e decodificar um sample real.
+    // Assobio de turbo (sempre criado; ganho 0 quando não há turbo).
+    final whistle = ctx.createOscillator()..type = 'sine';
+    final whistleGain = ctx.createGain();
+    whistleGain.gain.value = 0;
+    whistle.connect(whistleGain);
+    whistleGain.connect(ctx.destination);
+    whistle.start();
+
     try {
       final data = await rootBundle.load(_sampleAsset);
       final buffer = await ctx.decodeAudioData(data.buffer.toJS).toDart;
@@ -61,6 +75,8 @@ class WebEngineAudio implements EngineAudio {
 
     _ctx = ctx;
     _gain = gain;
+    _whistle = whistle;
+    _whistleGain = whistleGain;
     _ready = true;
   }
 
@@ -90,17 +106,24 @@ class WebEngineAudio implements EngineAudio {
     final double vol = (0.05 + throttle * 0.22).clamp(0.0, 0.3);
     _gain!.gain.value = vol;
 
+    // Assobio de turbo: sobe com o RPM, só audível ao acelerar.
+    if (_char.turbo) {
+      _whistle!.frequency.value = (1800 + rpm * 0.6).clamp(1500.0, 6500.0);
+      _whistleGain!.gain.value = (throttle * throttle * 0.04).clamp(0.0, 0.05);
+    } else {
+      _whistleGain!.gain.value = 0;
+    }
+
     if (_usingSample) {
-      // Pitch do sample real segue o RPM.
       _bufferSource!.playbackRate.value =
           (rpm / _sampleRefRpm).clamp(0.5, 4.0);
       return;
     }
 
-    // Síntese: frequência base "estilo motor" cresce com o RPM.
-    final double base = (rpm / 10).clamp(40.0, 1200.0);
-    _osc1!.frequency.value = base;
-    _osc2!.frequency.value = base * 2;
+    // Frequência de combustão → timbre por nº de cilindros.
+    final double firing = _char.firingHz(rpm);
+    _osc1!.frequency.value = (firing).clamp(28.0, 1400.0);
+    _osc2!.frequency.value = (firing * 2).clamp(40.0, 3000.0);
     _filter!.frequency.value = (600 + throttle * 2600).clamp(600.0, 3200.0);
   }
 
@@ -110,6 +133,7 @@ class WebEngineAudio implements EngineAudio {
       _bufferSource?.stop();
       _osc1?.stop();
       _osc2?.stop();
+      _whistle?.stop();
     } catch (_) {}
     final ctx = _ctx;
     if (ctx != null) {

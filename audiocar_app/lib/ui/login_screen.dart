@@ -284,6 +284,7 @@ class _LoginScreenState extends State<LoginScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: CockpitColors.gaugeTrack),
       ),
       alignment: Alignment.center,
       child: const Text(
