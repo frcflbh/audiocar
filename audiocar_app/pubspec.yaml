@@ -21,6 +21,7 @@ dependencies:
   web: ^1.1.0
   flutter_3d_controller: ^2.3.0
   flutter_blue_plus: ^2.3.5
+  shared_preferences: ^2.5.5
 
 dev_dependencies:
   flutter_test:

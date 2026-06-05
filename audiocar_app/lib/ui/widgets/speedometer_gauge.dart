@@ -11,31 +11,42 @@ class SpeedometerGauge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AspectRatio(
-      aspectRatio: 1,
-      child: CustomPaint(
-        painter: _SpeedometerPainter(value: value, max: max),
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 28),
-              Text(
-                value.round().toString(),
-                style: const TextStyle(
-                  color: CockpitColors.textPrimary,
-                  fontSize: 34,
-                  fontWeight: FontWeight.w700,
+    return Center(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final side = constraints.biggest.shortestSide;
+          return SizedBox(
+            width: side,
+            height: side,
+            child: CustomPaint(
+              painter: _SpeedometerPainter(value: value, max: max),
+              child: Center(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 28),
+                Text(
+                  value.round().toString(),
+                  style: const TextStyle(
+                    color: CockpitColors.textPrimary,
+                    fontSize: 34,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const Text(
+                  'km/h',
+                  style: TextStyle(color: CockpitColors.textMuted, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
                 ),
               ),
-              const Text(
-                'km/h',
-                style: TextStyle(color: CockpitColors.textMuted, fontSize: 12),
-              ),
-            ],
-          ),
+            );
+          },
         ),
-      ),
     );
   }
 }

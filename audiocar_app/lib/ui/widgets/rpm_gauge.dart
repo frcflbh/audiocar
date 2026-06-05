@@ -18,30 +18,42 @@ class RpmGauge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AspectRatio(
-      aspectRatio: 1,
-      child: CustomPaint(
-        painter: _RpmPainter(value: value, max: max, redline: redline),
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 28),
-              Text(
-                (value / 1000).toStringAsFixed(1),
-                style: const TextStyle(
-                  color: CockpitColors.textPrimary,
-                  fontSize: 34,
-                  fontWeight: FontWeight.w700,
+    return Center(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final side = constraints.biggest.shortestSide;
+          return SizedBox(
+            width: side,
+            height: side,
+            child: CustomPaint(
+              painter: _RpmPainter(value: value, max: max, redline: redline),
+              child: Center(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const SizedBox(height: 28),
+                      Text(
+                        (value / 1000).toStringAsFixed(1),
+                        style: const TextStyle(
+                          color: CockpitColors.textPrimary,
+                          fontSize: 34,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const Text(
+                        'x1000 RPM',
+                        style: TextStyle(
+                            color: CockpitColors.textMuted, fontSize: 12),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              const Text(
-                'x1000 RPM',
-                style: TextStyle(color: CockpitColors.textMuted, fontSize: 12),
-              ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }

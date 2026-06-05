@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_3d_controller/flutter_3d_controller.dart';
@@ -35,6 +36,14 @@ class _Car3DViewState extends State<Car3DView> {
   }
 
   Future<void> _checkModel() async {
+    // No web, o visualizador glTF (model-viewer) é carregado de um CDN e é
+    // bloqueado quando a página está cross-origin-isolated (cabeçalhos COOP/COEP
+    // exigidos pelo áudio Web). Por isso, no web usamos o render estilizado
+    // (rotacionável). No mobile/desktop, o 3D é nativo e usa o GLB real.
+    if (kIsWeb) {
+      if (mounted) setState(() => _hasModel = false);
+      return;
+    }
     try {
       await rootBundle.load(widget.modelAsset);
       if (mounted) setState(() => _hasModel = true);

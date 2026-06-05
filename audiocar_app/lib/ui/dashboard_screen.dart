@@ -11,6 +11,7 @@ import '../services/gps_service.dart';
 import '../services/obd2_speed_source.dart';
 import '../services/speed_source.dart';
 import '../theme.dart';
+import 'login_screen.dart';
 import 'widgets/car_3d_view.dart';
 import 'widgets/rpm_gauge.dart';
 import 'widgets/speedometer_gauge.dart';
@@ -76,28 +77,116 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Future<void> _openGarage() async {
     final hasPremium = authService.user?.isPremium ?? false;
+    final all = soundCatalog.profiles;
+    final unlocked =
+        all.where((p) => !soundCatalog.isLocked(p, hasPremium: hasPremium)).toList();
+    final locked =
+        all.where((p) => soundCatalog.isLocked(p, hasPremium: hasPremium)).toList();
+
     await showModalBottomSheet<void>(
       context: context,
-      backgroundColor: CockpitColors.panel,
-      showDragHandle: true,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       builder: (context) {
-        return ListView(
-          shrinkWrap: true,
-          children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 4, 16, 8),
-              child: Text('Garagem · Sons de Motores',
-                  style: TextStyle(
-                      color: CockpitColors.textPrimary,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold)),
-            ),
-            for (final p in soundCatalog.profiles)
-              _garageTile(p, hasPremium),
-            const SizedBox(height: 12),
-          ],
+        return DraggableScrollableSheet(
+          initialChildSize: 0.6,
+          minChildSize: 0.4,
+          maxChildSize: 0.92,
+          expand: false,
+          builder: (context, scrollController) {
+            return Container(
+              decoration: const BoxDecoration(
+                color: CockpitColors.panel,
+                borderRadius:
+                    BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              child: Column(
+                children: [
+                  Container(
+                    margin: const EdgeInsets.symmetric(vertical: 10),
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: CockpitColors.gaugeTrack,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(16, 0, 16, 4),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text('Garagem · Sons de Motores',
+                          style: TextStyle(
+                              color: CockpitColors.textPrimary,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                  Expanded(
+                    child: ListView(
+                      controller: scrollController,
+                      padding: const EdgeInsets.only(bottom: 16),
+                      children: [
+                        for (final p in unlocked) _garageTile(p, hasPremium),
+                        if (locked.isNotEmpty)
+                          _premiumBanner(locked.length, hasPremium),
+                        for (final p in locked) _garageTile(p, hasPremium),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
         );
       },
+    );
+  }
+
+  Widget _premiumBanner(int count, bool hasPremium) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [CockpitColors.accentSoft, CockpitColors.panel],
+        ),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+            color: CockpitColors.accent.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.workspace_premium, color: CockpitColors.accent),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Sons Premium',
+                    style: TextStyle(
+                        color: CockpitColors.textPrimary,
+                        fontWeight: FontWeight.bold)),
+                Text('Desbloqueie $count motores exclusivos',
+                    style: const TextStyle(
+                        color: CockpitColors.textMuted, fontSize: 12)),
+              ],
+            ),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(context);
+              if (authService.isGuest) {
+                _openLogin(reason: 'Entre para comprar packs premium');
+              } else {
+                authService.upgradeToPremium();
+                setState(() => _status = 'Premium ativado · sons liberados');
+              }
+            },
+            child: Text(hasPremium ? 'Ver' : 'Desbloquear'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -123,8 +212,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
       onTap: () {
         if (locked) {
           Navigator.pop(context);
-          setState(() => _status =
-              '${p.name} é premium · ative no menu de conta');
+          if (authService.isGuest) {
+            _openLogin(reason: 'Entre para desbloquear "${p.name}"');
+          } else {
+            setState(() => _status =
+                '${p.name} é premium · ative no menu de conta');
+          }
           return;
         }
         _selectProfile(p);
@@ -190,62 +283,68 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (mounted) setState(() {});
   }
 
-  /// Cicla entre as fontes de velocidade: Demo → GPS → OBD2 → Demo.
-  /// Demonstra a abstração [SpeedSource] (Seção 10 da RFP): a UI e o áudio
+  /// Seleciona a fonte de velocidade (Demo / GPS / OBD2) pelo seletor.
+  /// Demonstra a abstração [SpeedSource] (Seção 10 da RFP): UI e áudio
   /// independem da origem do dado.
-  Future<void> _cycleMode() async {
+  Future<void> _setMode(SpeedOrigin target) async {
     await _enableAudio(); // gesto do usuário → bom momento p/ ligar o áudio
-    // Para a fonte atual.
+    if (target == _origin && _speedSub != null) return;
+
     await _gpsSource.stop();
     await _obd2Source.stop();
 
-    switch (_origin) {
+    switch (target) {
       case SpeedOrigin.demo:
+        await _attachSource(_demoSource, SpeedOrigin.demo);
+        setState(() => _status = 'Modo demonstração');
+        break;
+      case SpeedOrigin.gps:
         final ok = await _gpsSource.prepare();
         if (!ok) {
-          setState(() => _status =
-              'Permissão de GPS negada · permanecendo em modo demo');
           await _attachSource(_demoSource, SpeedOrigin.demo);
+          setState(() => _status = 'Permissão de GPS negada · modo demo');
           return;
         }
         await _attachSource(_gpsSource, SpeedOrigin.gps);
         setState(() => _status = 'GPS ativo · velocidade real');
         break;
-      case SpeedOrigin.gps:
-        // OBD2 é um recurso premium (Requisitos 4.6 e 11 da RFP).
-        if (!(authService.user?.isPremium ?? false)) {
-          await _gpsSource.stop();
+      case SpeedOrigin.obd2:
+        // OBD2 é premium (Requisitos 4.6 e 11): exige login + premium.
+        if (authService.isGuest) {
           await _attachSource(_demoSource, SpeedOrigin.demo);
-          setState(() => _status =
-              'OBD2 é premium · ative no menu de conta');
+          setState(() => _status = 'Modo demonstração');
+          _openLogin(reason: 'Entre para usar o OBD2 (recurso premium)');
+          return;
+        }
+        if (!(authService.user?.isPremium ?? false)) {
+          await _attachSource(_demoSource, SpeedOrigin.demo);
+          setState(() => _status = 'OBD2 é premium · ative no menu de conta');
           return;
         }
         final ok = await _obd2Source.prepare();
         if (!ok) {
-          setState(() => _status = 'OBD2 não conectado · voltando ao demo');
           await _attachSource(_demoSource, SpeedOrigin.demo);
+          setState(() => _status = 'OBD2 não conectado · modo demo');
           return;
         }
         await _attachSource(_obd2Source, SpeedOrigin.obd2);
         setState(() => _status = 'OBD2 (simulado) · leitura da ECU');
         break;
-      case SpeedOrigin.obd2:
-        await _attachSource(_demoSource, SpeedOrigin.demo);
-        setState(() => _status = 'Modo demonstração');
-        break;
     }
+  }
+
+  /// Abre a tela de login como rota (convidado-primeiro).
+  Future<void> _openLogin({String? reason}) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<bool>(builder: (_) => LoginScreen(reason: reason)),
+    );
+    if (mounted) setState(() {});
   }
 
   String get _modeLabel => switch (_origin) {
         SpeedOrigin.demo => 'Demo',
         SpeedOrigin.gps => 'GPS',
         SpeedOrigin.obd2 => 'OBD2',
-      };
-
-  String get _nextModeLabel => switch (_origin) {
-        SpeedOrigin.demo => 'Usar GPS',
-        SpeedOrigin.gps => 'Usar OBD2',
-        SpeedOrigin.obd2 => 'Modo demo',
       };
 
   @override
@@ -270,7 +369,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: Column(
             children: [
               _topBar(),
-              const SizedBox(height: 8),
+              _statusLine(),
+              const SizedBox(height: 6),
               // Modelo 3D (topo).
               Expanded(
                 flex: 5,
@@ -296,8 +396,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               const SizedBox(height: 10),
               if (_demoMode) _demoSlider(),
-              if (_demoMode) const SizedBox(height: 10),
-              // Rodapé de status (toque abre a Garagem / Sons de Motores).
+              if (_demoMode) const SizedBox(height: 8),
+              _modeSelector(),
+              const SizedBox(height: 10),
+              // Rodapé (toque abre a Garagem / Sons de Motores).
               GestureDetector(
                 onTap: _openGarage,
                 child: StatusFooter(
@@ -321,107 +423,180 @@ class _DashboardScreenState extends State<DashboardScreen> {
           'AUDIOCAR',
           style: TextStyle(
             color: CockpitColors.textPrimary,
-            fontSize: 20,
+            fontSize: 18,
             fontWeight: FontWeight.w800,
             letterSpacing: 1.5,
           ),
         ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            _status,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-                color: CockpitColors.textMuted, fontSize: 12),
-          ),
+        const Spacer(),
+        _audioButton(),
+        const SizedBox(width: 4),
+        IconButton(
+          onPressed: _openGarage,
+          icon: const Icon(Icons.garage, color: CockpitColors.textMuted),
+          tooltip: 'Garagem',
         ),
-        if (!_audioReady)
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: FilledButton.icon(
-              onPressed: _enableAudio,
-              icon: const Icon(Icons.volume_up, size: 18),
-              label: const Text('Ativar áudio'),
-            ),
-          ),
-        FilledButton.tonalIcon(
-          onPressed: _cycleMode,
-          icon: Icon(
-            switch (_origin) {
-              SpeedOrigin.demo => Icons.gps_fixed,
-              SpeedOrigin.gps => Icons.cable,
-              SpeedOrigin.obd2 => Icons.videogame_asset,
-            },
-            size: 18,
-          ),
-          label: Text(_nextModeLabel),
-        ),
-        const SizedBox(width: 8),
+        const SizedBox(width: 2),
         _accountMenu(),
       ],
     );
   }
 
-  Widget _accountMenu() {
-    final user = authService.user;
-    final initial = (user?.email.isNotEmpty ?? false)
-        ? user!.email[0].toUpperCase()
-        : '?';
-    return PopupMenuButton<String>(
-      tooltip: 'Conta',
-      onSelected: (value) {
-        switch (value) {
-          case 'premium':
-            authService.upgradeToPremium();
-            setState(() => _status = 'Premium ativado · OBD2 liberado');
-            break;
-          case 'logout':
-            authService.signOut();
-            break;
-        }
-      },
-      itemBuilder: (context) => [
-        PopupMenuItem<String>(
-          enabled: false,
-          child: Text(user?.email ?? '—',
-              style: const TextStyle(color: CockpitColors.textMuted)),
-        ),
-        if (!(user?.isPremium ?? false))
-          const PopupMenuItem<String>(
-            value: 'premium',
-            child: Row(children: [
-              Icon(Icons.workspace_premium, size: 18),
-              SizedBox(width: 8),
-              Text('Tornar Premium'),
-            ]),
-          )
-        else
-          const PopupMenuItem<String>(
-            enabled: false,
-            child: Row(children: [
-              Icon(Icons.verified, size: 18, color: CockpitColors.accent),
-              SizedBox(width: 8),
-              Text('Premium ativo'),
-            ]),
-          ),
-        const PopupMenuItem<String>(
-          value: 'logout',
-          child: Row(children: [
-            Icon(Icons.logout, size: 18),
-            SizedBox(width: 8),
-            Text('Sair'),
-          ]),
-        ),
-      ],
-      child: CircleAvatar(
-        radius: 18,
-        backgroundColor: (user?.isPremium ?? false)
-            ? CockpitColors.accent
-            : CockpitColors.accentSoft,
-        child: Text(initial,
-            style: const TextStyle(
-                color: Colors.white, fontWeight: FontWeight.bold)),
+  Widget _statusLine() {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Text(
+        _status,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(color: CockpitColors.textMuted, fontSize: 12),
       ),
+    );
+  }
+
+  Widget _audioButton() {
+    if (_audioReady) {
+      return const IconButton(
+        onPressed: null,
+        icon: Icon(Icons.volume_up, color: CockpitColors.accent),
+        tooltip: 'Áudio ativo',
+      );
+    }
+    return FilledButton.tonalIcon(
+      onPressed: _enableAudio,
+      icon: const Icon(Icons.volume_up, size: 18),
+      label: const Text('Áudio'),
+      style: FilledButton.styleFrom(
+        visualDensity: VisualDensity.compact,
+      ),
+    );
+  }
+
+  Widget _modeSelector() {
+    return SizedBox(
+      width: double.infinity,
+      child: SegmentedButton<SpeedOrigin>(
+        segments: const [
+          ButtonSegment(
+              value: SpeedOrigin.demo,
+              label: Text('Demo'),
+              icon: Icon(Icons.videogame_asset, size: 16)),
+          ButtonSegment(
+              value: SpeedOrigin.gps,
+              label: Text('GPS'),
+              icon: Icon(Icons.gps_fixed, size: 16)),
+          ButtonSegment(
+              value: SpeedOrigin.obd2,
+              label: Text('OBD2'),
+              icon: Icon(Icons.cable, size: 16)),
+        ],
+        selected: {_origin},
+        showSelectedIcon: false,
+        onSelectionChanged: (s) => _setMode(s.first),
+        style: const ButtonStyle(
+          visualDensity: VisualDensity.compact,
+          textStyle: WidgetStatePropertyAll(
+            TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _accountMenu() {
+    return AnimatedBuilder(
+      animation: authService,
+      builder: (context, _) {
+        final user = authService.user;
+        final guest = authService.isGuest;
+        final initial = (!guest && user!.email.isNotEmpty)
+            ? user.email[0].toUpperCase()
+            : null;
+
+        return PopupMenuButton<String>(
+          tooltip: 'Conta',
+          onSelected: (value) async {
+            switch (value) {
+              case 'login':
+                _openLogin();
+                break;
+              case 'premium':
+                authService.upgradeToPremium();
+                setState(() => _status = 'Premium ativado · OBD2 liberado');
+                break;
+              case 'logout':
+                await authService.signOut();
+                if (mounted) setState(() => _status = 'Sessão encerrada');
+                break;
+            }
+          },
+          itemBuilder: (context) {
+            if (guest) {
+              return const [
+                PopupMenuItem<String>(
+                  enabled: false,
+                  child: Text('Você está como convidado',
+                      style: TextStyle(color: CockpitColors.textMuted)),
+                ),
+                PopupMenuItem<String>(
+                  value: 'login',
+                  child: Row(children: [
+                    Icon(Icons.login, size: 18),
+                    SizedBox(width: 8),
+                    Text('Entrar / Criar conta'),
+                  ]),
+                ),
+              ];
+            }
+            return [
+              PopupMenuItem<String>(
+                enabled: false,
+                child: Text(user!.email,
+                    style: const TextStyle(color: CockpitColors.textMuted)),
+              ),
+              if (!user.isPremium)
+                const PopupMenuItem<String>(
+                  value: 'premium',
+                  child: Row(children: [
+                    Icon(Icons.workspace_premium, size: 18),
+                    SizedBox(width: 8),
+                    Text('Tornar Premium'),
+                  ]),
+                )
+              else
+                const PopupMenuItem<String>(
+                  enabled: false,
+                  child: Row(children: [
+                    Icon(Icons.verified, size: 18, color: CockpitColors.accent),
+                    SizedBox(width: 8),
+                    Text('Premium ativo'),
+                  ]),
+                ),
+              const PopupMenuItem<String>(
+                value: 'logout',
+                child: Row(children: [
+                  Icon(Icons.logout, size: 18),
+                  SizedBox(width: 8),
+                  Text('Sair'),
+                ]),
+              ),
+            ];
+          },
+          child: CircleAvatar(
+            radius: 16,
+            backgroundColor: guest
+                ? CockpitColors.gaugeTrack
+                : (user!.isPremium
+                    ? CockpitColors.accent
+                    : CockpitColors.accentSoft),
+            child: initial != null
+                ? Text(initial,
+                    style: const TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.bold))
+                : const Icon(Icons.person,
+                    size: 18, color: CockpitColors.textMuted),
+          ),
+        );
+      },
     );
   }
 

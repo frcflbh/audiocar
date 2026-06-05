@@ -18,6 +18,12 @@ ThemeData buildAudioCarTheme() {
     scaffoldBackgroundColor: CockpitColors.background,
     colorScheme: const ColorScheme.dark(
       primary: CockpitColors.accent,
+      onPrimary: Colors.white,
+      // Botões tonais e seleção do SegmentedButton usam o "secondary container".
+      // Alinhamos ao azul da marca (em vez do teal padrão do Material 3).
+      secondary: CockpitColors.accent,
+      secondaryContainer: CockpitColors.accentSoft,
+      onSecondaryContainer: Colors.white,
       surface: CockpitColors.panel,
     ),
     fontFamily: 'Roboto',
