@@ -193,6 +193,7 @@
       "gearTopSpeedKmh": [65, 110, 160, 215, 324],
       "packId": "legends",
       "modelAsset": "assets/models/ferrari_f40.glb",
+      "imageAsset": "assets/images/ferrari_f40.jpg",
       "sampleAsset": "assets/audio/ferrari_f40.wav",
       "sampleRefRpm": 1500,
       "effects": ["turboWhistle", "blowoff", "backfire"]
@@ -211,6 +212,7 @@
       "gearTopSpeedKmh": [60, 105, 150, 195, 250, 318],
       "packId": "legends",
       "modelAsset": "assets/models/porsche_911.glb",
+      "imageAsset": "assets/images/porsche_911.jpg",
       "sampleAsset": "assets/audio/porsche_911.wav",
       "sampleRefRpm": 1500,
       "effects": []
@@ -229,6 +231,7 @@
       "gearTopSpeedKmh": [55, 95, 140, 185, 230, 250],
       "packId": "legends",
       "modelAsset": "assets/models/ford_mustang_gt.glb",
+      "imageAsset": "assets/images/ford_mustang_gt.jpg",
       "sampleAsset": "assets/audio/ford_mustang_gt.wav",
       "sampleRefRpm": 1000,
       "effects": ["backfire"]
@@ -247,6 +250,7 @@
       "gearTopSpeedKmh": [55, 95, 140, 185, 235, 290],
       "packId": "legends",
       "modelAsset": "assets/models/bmw_m3.glb",
+      "imageAsset": "assets/images/bmw_m3.jpg",
       "sampleAsset": "assets/audio/bmw_m3.wav",
       "sampleRefRpm": 1300,
       "effects": ["turboWhistle", "blowoff"]

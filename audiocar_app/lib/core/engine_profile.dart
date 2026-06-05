@@ -30,9 +30,11 @@ class EngineProfile {
   final String? sampleAsset;
   final double sampleRefRpm;
 
-  /// Modelo 3D glTF/GLB real do veículo (opcional). Se ausente, o app usa o
-  /// render estilizado. Slot para um asset devidamente licenciado.
+  /// Modelo 3D glTF/GLB real do veículo (opcional). Slot p/ asset licenciado.
   final String? modelAsset;
+
+  /// Foto estática do veículo (opcional). Exibida no palco central.
+  final String? imageAsset;
 
   final List<EngineEffect> effects;
   final String packId;
@@ -55,6 +57,7 @@ class EngineProfile {
     this.sampleAsset,
     this.sampleRefRpm = 1200,
     this.modelAsset,
+    this.imageAsset,
     this.effects = const [],
   });
 
@@ -89,6 +92,7 @@ class EngineProfile {
         sampleAsset: j['sampleAsset'] as String?,
         sampleRefRpm: (j['sampleRefRpm'] as num?)?.toDouble() ?? 1200,
         modelAsset: j['modelAsset'] as String?,
+        imageAsset: j['imageAsset'] as String?,
         effects: ((j['effects'] as List?) ?? const [])
             .map((e) => EngineEffect.values.byName(e as String))
             .toList(),

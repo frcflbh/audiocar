@@ -19,7 +19,6 @@ dependencies:
   #  - Navegador: Web Audio API via package:web
   flutter_soloud: ^3.1.10
   web: ^1.1.0
-  flutter_3d_controller: ^2.3.0
   flutter_blue_plus: ^2.3.5
   shared_preferences: ^2.5.5
 
@@ -35,5 +34,6 @@ flutter:
   assets:
     - assets/models/
     - assets/audio/
+    - assets/images/
     # Banco "Sons de Motores" (Requisitos 4.3 e 11 da RFP).
     - assets/sounds/

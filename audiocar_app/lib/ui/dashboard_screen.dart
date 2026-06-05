@@ -12,7 +12,7 @@ import '../services/obd2_speed_source.dart';
 import '../services/speed_source.dart';
 import '../theme.dart';
 import 'login_screen.dart';
-import 'widgets/car_3d_view.dart';
+import 'widgets/car_photo_view.dart';
 import 'widgets/rpm_gauge.dart';
 import 'widgets/speedometer_gauge.dart';
 
@@ -63,7 +63,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
     }
     if (soundCatalog.profiles.isNotEmpty) {
-      _selectProfile(soundCatalog.profiles.first, notify: false);
+      // Abre num veículo com foto real (melhor primeira impressão).
+      final withPhoto =
+          soundCatalog.profiles.where((p) => p.imageAsset != null);
+      final initial =
+          withPhoto.isNotEmpty ? withPhoto.first : soundCatalog.profiles.first;
+      _selectProfile(initial, notify: false);
     }
   }
 
@@ -492,14 +497,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ],
           ),
           const SizedBox(height: 10),
-          // Carro 3D rotacional do motor selecionado.
+          // Foto estática do veículo selecionado.
           Expanded(
             child: ClipRRect(
               borderRadius: BorderRadius.circular(16),
-              child: Car3DView(
+              child: CarPhotoView(
                 key: ValueKey(_profile?.id ?? 'default'),
-                rpm: _displayRpm,
-                modelAsset: _profile?.modelAsset ?? 'assets/models/car.glb',
+                imageAsset: _profile?.imageAsset,
+                label: _profile?.name ?? 'Veículo',
               ),
             ),
           ),
