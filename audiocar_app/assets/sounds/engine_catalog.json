@@ -27,11 +27,11 @@
     },
     {
       "id": "legends",
-      "name": "Lendas",
+      "name": "Lendas (Grátis)",
       "description": "Ícones reais: F40, 911, Mustang GT e M3.",
-      "isFree": false,
-      "priceCents": 2990,
-      "isPremium": true
+      "isFree": true,
+      "priceCents": 0,
+      "isPremium": false
     }
   ],
   "profiles": [
