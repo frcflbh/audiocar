@@ -42,8 +42,10 @@
       "packId": "legends",
       "modelAsset": "assets/models/ferrari_f40.glb",
       "imageAsset": "assets/images/ferrari_f40.jpg",
-      "sampleAsset": "assets/audio/ferrari_f40.ogg",
-      "sampleRefRpm": 3500,
+      "samples": [
+        {"asset": "assets/audio/ferrari_f40.ogg", "rpm": 2500},
+        {"asset": "assets/audio/ferrari_f40_high.ogg", "rpm": 7000}
+      ],
       "effects": ["turboWhistle", "blowoff", "backfire"]
     },
     {
@@ -61,8 +63,10 @@
       "packId": "legends",
       "modelAsset": "assets/models/porsche_911.glb",
       "imageAsset": "assets/images/porsche_911.jpg",
-      "sampleAsset": "assets/audio/porsche_911.wav",
-      "sampleRefRpm": 2500,
+      "samples": [
+        {"asset": "assets/audio/porsche_911.wav", "rpm": 2500},
+        {"asset": "assets/audio/porsche_911_high.ogg", "rpm": 7500}
+      ],
       "effects": []
     },
     {
@@ -80,8 +84,10 @@
       "packId": "legends",
       "modelAsset": "assets/models/ford_mustang_gt.glb",
       "imageAsset": "assets/images/ford_mustang_gt.jpg",
-      "sampleAsset": "assets/audio/ford_mustang_gt.ogg",
-      "sampleRefRpm": 1800,
+      "samples": [
+        {"asset": "assets/audio/ford_mustang_gt.ogg", "rpm": 1800},
+        {"asset": "assets/audio/ford_mustang_gt_high.ogg", "rpm": 5500}
+      ],
       "effects": ["backfire"]
     },
     {
@@ -99,8 +105,10 @@
       "packId": "legends",
       "modelAsset": "assets/models/bmw_m3.glb",
       "imageAsset": "assets/images/bmw_m3.jpg",
-      "sampleAsset": "assets/audio/bmw_m3.ogg",
-      "sampleRefRpm": 1000,
+      "samples": [
+        {"asset": "assets/audio/bmw_m3.ogg", "rpm": 1000},
+        {"asset": "assets/audio/bmw_m3_high.ogg", "rpm": 5500}
+      ],
       "effects": ["turboWhistle", "blowoff"]
     },
     {

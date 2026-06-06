@@ -30,8 +30,8 @@ class SoLoudEngineAudio implements EngineAudio {
   bool _muted = false;
   double _sampleRefRpm = 1200;
   EngineSoundCharacter _char = const EngineSoundCharacter();
-  String? _pendingSample;
-  double _pendingRefRpm = 1200;
+  List<EngineBand> _bands = const [];
+  int _activeBandIdx = -1;
 
   @override
   bool get isReady => _ready;
@@ -50,30 +50,58 @@ class SoLoudEngineAudio implements EngineAudio {
   }
 
   @override
-  void setSample(String? assetPath, double refRpm) {
-    _pendingSample = assetPath;
-    _pendingRefRpm = refRpm;
-    if (_ready) unawaited(_applySample(assetPath, refRpm));
+  void setBands(List<EngineBand> bands) {
+    _bands = bands;
+    _activeBandIdx = -1;
+    if (_ready) unawaited(_applyInitialBand());
   }
 
-  Future<void> _applySample(String? assetPath, double refRpm) async {
-    Uint8List bytes;
-    if (assetPath == null) {
+  Future<void> _applyInitialBand() async {
+    if (_bands.isEmpty) {
       _usingSample = false;
-      bytes = _buildEngineWav();
-    } else {
-      try {
-        final data = await rootBundle.load(assetPath);
-        bytes =
-            data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
-        _usingSample = true;
-        _sampleRefRpm = refRpm;
-      } catch (_) {
-        _usingSample = false;
-        bytes = _buildEngineWav();
+      _activeBandIdx = -1;
+      await _swapSource(_buildEngineWav());
+      return;
+    }
+    // Começa pela banda de RPM mais baixo (típicamente idle).
+    await _loadBand(0);
+  }
+
+  Future<void> _loadBand(int idx) async {
+    if (idx < 0 || idx >= _bands.length || idx == _activeBandIdx) return;
+    final band = _bands[idx];
+    try {
+      final data = await rootBundle.load(band.assetPath);
+      final bytes =
+          data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+      await _swapSource(bytes);
+      _usingSample = true;
+      _sampleRefRpm = band.refRpm;
+      _activeBandIdx = idx;
+    } catch (_) {
+      _usingSample = false;
+      _activeBandIdx = -1;
+      await _swapSource(_buildEngineWav());
+    }
+  }
+
+  /// Escolhe a banda cujo refRpm é mais próximo do RPM atual e troca se mudar.
+  /// (Multi-band crossfade real é complexo em SoLoud — no nativo fazemos
+  /// step-change. No web a transição é contínua.)
+  void _ensureBandForRpm(double rpm) {
+    if (_bands.length <= 1) return;
+    int best = 0;
+    double bestDiff = (_bands[0].refRpm - rpm).abs();
+    for (int i = 1; i < _bands.length; i++) {
+      final d = (_bands[i].refRpm - rpm).abs();
+      if (d < bestDiff) {
+        best = i;
+        bestDiff = d;
       }
     }
-    await _swapSource(bytes);
+    if (best != _activeBandIdx) {
+      unawaited(_loadBand(best));
+    }
   }
 
   Future<void> _swapSource(Uint8List bytes) async {
@@ -99,14 +127,14 @@ class SoLoudEngineAudio implements EngineAudio {
       if (!already) rethrow;
     }
 
-    // Síntese por padrão; a gravação real (se houver) é aplicada via setSample.
+    // Síntese por padrão; a(s) gravação(ões) real(is) são aplicadas via setBands.
     _source = await _soloud.loadMem('audiocar_engine', _buildEngineWav());
     _handle = await _soloud.play(_source!, looping: true, volume: 0.0);
     _usingSample = false;
     _ready = true;
 
-    if (_pendingSample != null) {
-      await _applySample(_pendingSample, _pendingRefRpm);
+    if (_bands.isNotEmpty) {
+      await _applyInitialBand();
     }
   }
 
@@ -127,8 +155,10 @@ class SoLoudEngineAudio implements EngineAudio {
       _soloud.setVolume(handle, 0);
       return;
     }
+    // Step-change para a banda mais próxima do RPM atual (no nativo).
+    if (_usingSample) _ensureBandForRpm(rpm);
     final double refRpm = _usingSample ? _sampleRefRpm : _synthRefRpm;
-    final double playSpeed = (rpm / refRpm).clamp(0.4, 4.5);
+    final double playSpeed = (rpm / refRpm).clamp(0.75, 1.6);
     _soloud.setRelativePlaySpeed(handle, playSpeed);
     final double volume = (0.22 + throttle * 0.78).clamp(0.0, 1.0);
     _soloud.setVolume(handle, volume);

@@ -84,8 +84,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
       idleRpm: profile.idleRpm,
       redlineRpm: profile.redlineRpm,
     ));
-    // Gravação real do motor (se houver); senão, síntese.
-    _engine.setSample(profile.sampleAsset, profile.sampleRefRpm);
+    // Bandas de áudio do motor (multi-band crossfade no web); senão, síntese.
+    _engine.setBands(profile.samples
+        .map((s) => EngineBand(assetPath: s.asset, refRpm: s.refRpm))
+        .toList());
     if (notify && mounted) setState(() {});
   }
 

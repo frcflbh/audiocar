@@ -6,6 +6,14 @@
 ///
 /// A seleção é feita por `engine_audio.dart` via conditional imports, de modo
 /// que o código de plataforma indevido nem entra no build.
+/// Uma banda de áudio do motor: gravação que cobre uma faixa de RPM.
+/// O motor de áudio faz crossfade entre bandas adjacentes baseado no RPM atual.
+class EngineBand {
+  final String assetPath;
+  final double refRpm;
+  const EngineBand({required this.assetPath, required this.refRpm});
+}
+
 /// Caráter sonoro do motor selecionado (banco "Sons de Motores").
 /// Deriva o timbre do número de cilindros (frequência de combustão) e da
 /// indução (assobio de turbo), dando som distinto a cada carro.
@@ -46,10 +54,10 @@ abstract class EngineAudio {
   /// Define o caráter sonoro do motor selecionado (timbre por carro).
   void setCharacter(EngineSoundCharacter character);
 
-  /// Define a gravação real do motor a ser usada (loop, com pitch pelo RPM).
-  /// Se [assetPath] for nulo ou falhar, usa a síntese como fallback.
-  /// [refRpm] é o RPM aproximado da gravação (onde playbackRate = 1).
-  void setSample(String? assetPath, double refRpm);
+  /// Define as bandas de áudio do motor (lista ordenada por refRpm).
+  /// O implementador faz crossfade entre bandas adjacentes baseado no RPM
+  /// atual. Lista vazia = sem gravação; cai na síntese.
+  void setBands(List<EngineBand> bands);
 
   /// Silencia/dessilencia o áudio sem perder o contexto.
   /// Útil para um toggle de "ligar/desligar áudio" pela UI.

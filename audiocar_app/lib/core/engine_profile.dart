@@ -1,14 +1,32 @@
 // Modelo do banco "Sons de Motores" (Requisitos 4.3 e 11 da RFP).
 //
 // Cada EngineProfile é uma entrada do banco — um motor descrito por sua
-// especificação, faixa de operação, câmbio e o sample/parametrização de áudio.
-// A estrutura é inspirada nos apps de referência (ver docs/engine_sounds_reference.md).
+// especificação, faixa de operação, câmbio e o(s) sample(s) de áudio em
+// múltiplas bandas de RPM (para crossfade em tempo real).
 
 enum EngineLayout { inline, vee, flat, rotary, vtwin, single }
 
 enum Induction { naturalAspirated, turbo, supercharger }
 
 enum EngineEffect { turboWhistle, backfire, supercharger, blowoff }
+
+/// Uma "banda" de áudio: gravação correspondente a uma faixa de RPM.
+class EngineSample {
+  /// Path do asset (ex.: `assets/audio/ferrari_f40_high.ogg`).
+  final String asset;
+
+  /// RPM em que a gravação foi feita. Usado pelo motor de áudio para
+  /// (a) ajustar o playbackRate (pitch ≈ rpmAtual/refRpm) e
+  /// (b) escolher pesos entre bandas adjacentes no crossfade.
+  final double refRpm;
+
+  const EngineSample({required this.asset, required this.refRpm});
+
+  factory EngineSample.fromJson(Map<String, dynamic> j) => EngineSample(
+        asset: j['asset'] as String,
+        refRpm: (j['rpm'] ?? j['refRpm'] as num).toDouble(),
+      );
+}
 
 class EngineProfile {
   final String id;
@@ -26,9 +44,9 @@ class EngineProfile {
   /// Velocidade (km/h) no topo de cada marcha — define as relações do câmbio.
   final List<double> gearTopSpeedKmh;
 
-  /// Sample de áudio real (opcional) e o RPM em que foi gravado.
-  final String? sampleAsset;
-  final double sampleRefRpm;
+  /// Bandas de áudio do motor (ordenadas por refRpm). Pode ter 1+ entradas.
+  /// Vazio = sem gravação; cai na síntese.
+  final List<EngineSample> samples;
 
   /// Modelo 3D glTF/GLB real do veículo (opcional). Slot p/ asset licenciado.
   final String? modelAsset;
@@ -54,8 +72,7 @@ class EngineProfile {
     required this.maxRpm,
     required this.gearTopSpeedKmh,
     required this.packId,
-    this.sampleAsset,
-    this.sampleRefRpm = 1200,
+    this.samples = const [],
     this.modelAsset,
     this.imageAsset,
     this.effects = const [],
@@ -74,27 +91,47 @@ class EngineProfile {
     return '${displacementL.toStringAsFixed(1)}L $layoutStr · $category';
   }
 
-  factory EngineProfile.fromJson(Map<String, dynamic> j) => EngineProfile(
-        id: j['id'] as String,
-        name: j['name'] as String,
-        category: j['category'] as String,
-        displacementL: (j['displacementL'] as num).toDouble(),
-        cylinders: (j['cylinders'] as num).toInt(),
-        layout: EngineLayout.values.byName(j['layout'] as String),
-        induction: Induction.values.byName(j['induction'] as String),
-        idleRpm: (j['idleRpm'] as num).toDouble(),
-        redlineRpm: (j['redlineRpm'] as num).toDouble(),
-        maxRpm: (j['maxRpm'] as num).toDouble(),
-        gearTopSpeedKmh: (j['gearTopSpeedKmh'] as List)
-            .map((e) => (e as num).toDouble())
-            .toList(),
-        packId: j['packId'] as String,
-        sampleAsset: j['sampleAsset'] as String?,
-        sampleRefRpm: (j['sampleRefRpm'] as num?)?.toDouble() ?? 1200,
-        modelAsset: j['modelAsset'] as String?,
-        imageAsset: j['imageAsset'] as String?,
-        effects: ((j['effects'] as List?) ?? const [])
-            .map((e) => EngineEffect.values.byName(e as String))
-            .toList(),
-      );
+  factory EngineProfile.fromJson(Map<String, dynamic> j) {
+    // Aceita formato novo (`samples: [...]`) e legado (`sampleAsset` + `sampleRefRpm`).
+    final samplesJson = j['samples'] as List?;
+    final List<EngineSample> samples;
+    if (samplesJson != null && samplesJson.isNotEmpty) {
+      samples = samplesJson
+          .map((e) => EngineSample.fromJson(e as Map<String, dynamic>))
+          .toList()
+        ..sort((a, b) => a.refRpm.compareTo(b.refRpm));
+    } else if (j['sampleAsset'] is String) {
+      samples = [
+        EngineSample(
+          asset: j['sampleAsset'] as String,
+          refRpm: (j['sampleRefRpm'] as num?)?.toDouble() ?? 1200,
+        )
+      ];
+    } else {
+      samples = const [];
+    }
+
+    return EngineProfile(
+      id: j['id'] as String,
+      name: j['name'] as String,
+      category: j['category'] as String,
+      displacementL: (j['displacementL'] as num).toDouble(),
+      cylinders: (j['cylinders'] as num).toInt(),
+      layout: EngineLayout.values.byName(j['layout'] as String),
+      induction: Induction.values.byName(j['induction'] as String),
+      idleRpm: (j['idleRpm'] as num).toDouble(),
+      redlineRpm: (j['redlineRpm'] as num).toDouble(),
+      maxRpm: (j['maxRpm'] as num).toDouble(),
+      gearTopSpeedKmh: (j['gearTopSpeedKmh'] as List)
+          .map((e) => (e as num).toDouble())
+          .toList(),
+      packId: j['packId'] as String,
+      samples: samples,
+      modelAsset: j['modelAsset'] as String?,
+      imageAsset: j['imageAsset'] as String?,
+      effects: ((j['effects'] as List?) ?? const [])
+          .map((e) => EngineEffect.values.byName(e as String))
+          .toList(),
+    );
+  }
 }
