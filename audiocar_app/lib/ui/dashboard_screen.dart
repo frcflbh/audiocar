@@ -81,6 +81,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _engine.setCharacter(EngineSoundCharacter(
       cylinders: profile.cylinders,
       turbo: profile.isTurbo,
+      idleRpm: profile.idleRpm,
+      redlineRpm: profile.redlineRpm,
     ));
     // Gravação real do motor (se houver); senão, síntese.
     _engine.setSample(profile.sampleAsset, profile.sampleRefRpm);

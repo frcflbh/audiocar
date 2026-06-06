@@ -12,11 +12,28 @@
 class EngineSoundCharacter {
   final int cylinders;
   final bool turbo;
-  const EngineSoundCharacter({this.cylinders = 8, this.turbo = false});
+  // Faixa de operação do motor (usada pra normalizar o RPM em t∈[0,1]
+  // e mapear playback rate + abertura do filtro low-pass).
+  final double idleRpm;
+  final double redlineRpm;
+
+  const EngineSoundCharacter({
+    this.cylinders = 8,
+    this.turbo = false,
+    this.idleRpm = 900,
+    this.redlineRpm = 7000,
+  });
 
   /// Frequência de combustão (Hz) de um motor 4 tempos no RPM informado:
   /// (rpm/60) * (cilindros/2).
   double firingHz(double rpm) => (rpm / 60.0) * (cylinders / 2.0);
+
+  /// Posição normalizada do RPM atual entre idle (0) e redline (1).
+  /// Pode passar de 1 quando o RPM passa do redline; clampamos onde precisa.
+  double t(double rpm) {
+    final span = (redlineRpm - idleRpm).clamp(1.0, double.infinity);
+    return (rpm - idleRpm) / span;
+  }
 }
 
 abstract class EngineAudio {

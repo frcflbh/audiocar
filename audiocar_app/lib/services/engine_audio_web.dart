@@ -7,15 +7,24 @@ import 'engine_audio_interface.dart';
 /// Fábrica usada pelo conditional import em `engine_audio.dart`.
 EngineAudio createEngineAudio() => WebEngineAudio();
 
-/// Motor de áudio para navegador (Web Audio API).
+/// Motor de áudio para navegador (Web Audio API) com engenharia de áudio
+/// pra extrair mais realismo do single sample real:
 ///
-/// Toca a **gravação real** do motor selecionado (loop, com pitch seguindo o
-/// RPM). Se não houver gravação, cai na síntese (osciladores + assobio de turbo).
+/// - `playbackRate` em faixa **estreita** (0.75x–1.65x) → evita o efeito
+///   "chipmunk" em RPM alto.
+/// - **Filtro low-pass dinâmico** entre BufferSource e ganho do sample: a
+///   frequência de corte abre conforme o RPM, simulando o motor "abrindo"
+///   ao acelerar (idle → 500 Hz; redline → 6 kHz).
+/// - Assobio de turbo (oscilador sintético) **somado por cima** da gravação
+///   em carros turbo, pra entregar a parte do timbre que a gravação genérica
+///   não tem.
+/// - Fallback para síntese pura (osciladores + ruído) se a gravação falhar.
 class WebEngineAudio implements EngineAudio {
   web.AudioContext? _ctx;
   web.GainNode? _master; // volume geral (throttle)
   web.GainNode? _oscGain; // seletor: síntese
   web.GainNode? _sampleGain; // seletor: gravação real
+  web.BiquadFilterNode? _sampleFilter; // filtro dinâmico do sample
 
   // Síntese (fallback).
   web.OscillatorNode? _osc1;
@@ -27,7 +36,6 @@ class WebEngineAudio implements EngineAudio {
   // Gravação real.
   web.AudioBufferSourceNode? _bufferSource;
   bool _usingSample = false;
-  double _sampleRefRpm = 1200;
 
   bool _ready = false;
   bool _muted = false;
@@ -62,7 +70,15 @@ class WebEngineAudio implements EngineAudio {
     oscGain.connect(master);
     sampleGain.connect(master);
 
-    // Síntese.
+    // Filtro dinâmico do sample: BufferSource → filtro → sampleGain.
+    // Inicia com cutoff baixo (idle); update() abre conforme o RPM.
+    final sampleFilter = ctx.createBiquadFilter()
+      ..type = 'lowpass'
+      ..frequency.value = 800
+      ..Q.value = 0.7;
+    sampleFilter.connect(sampleGain);
+
+    // Síntese (fallback).
     final osc1 = ctx.createOscillator()..type = 'sawtooth';
     final osc2 = ctx.createOscillator()..type = 'square';
     osc2.detune.value = -8;
@@ -84,6 +100,7 @@ class WebEngineAudio implements EngineAudio {
     _master = master;
     _oscGain = oscGain;
     _sampleGain = sampleGain;
+    _sampleFilter = sampleFilter;
     _osc1 = osc1;
     _osc2 = osc2;
     _filter = filter;
@@ -114,11 +131,8 @@ class WebEngineAudio implements EngineAudio {
     }
 
     try {
-      // No web, vamos direto pelo fetch (mais confiável que rootBundle.load em
-      // release builds, que serializa assets num bundle compartilhado e podia
-      // devolver um ByteData vazio neste fluxo).
-      // O fetch relativo respeita o <base href> da página (ex.: /audiocar/).
-      // Flutter publica assets em 'assets/<path>', então prefixamos.
+      // Fetch direto no path do asset (respeita o <base href> da página).
+      // Mais confiável que rootBundle.load em release builds.
       final url = 'assets/$assetPath';
       final response = await web.window.fetch(url.toJS).toDart;
       if (!response.ok) {
@@ -129,15 +143,14 @@ class WebEngineAudio implements EngineAudio {
       final src = ctx.createBufferSource();
       src.buffer = buffer;
       src.loop = true;
-      src.connect(_sampleGain!);
+      // BufferSource → filtro dinâmico → sampleGain → master
+      src.connect(_sampleFilter!);
       src.start();
       _bufferSource = src;
-      _sampleRefRpm = refRpm;
       _usingSample = true;
       _oscGain!.gain.value = 0; // silencia a síntese
       _sampleGain!.gain.value = 1;
     } catch (_) {
-      // Falhou: mantém a síntese.
       _usingSample = false;
       _oscGain!.gain.value = 1;
       _sampleGain!.gain.value = 0;
@@ -153,17 +166,42 @@ class WebEngineAudio implements EngineAudio {
   @override
   void update({required double rpm, required double throttle}) {
     if (!_ready) return;
-    _master!.gain.value =
-        _muted ? 0 : (0.06 + throttle * 0.5).clamp(0.0, 0.6);
+    if (_muted) {
+      _master!.gain.value = 0;
+      return;
+    }
+    // Volume geral cresce com o pedal.
+    _master!.gain.value = (0.07 + throttle * 0.55).clamp(0.0, 0.65);
 
     if (_usingSample) {
-      _bufferSource?.playbackRate.value =
-          (rpm / _sampleRefRpm).clamp(0.5, 3.5);
-      _whistleGain!.gain.value = 0; // a gravação já tem o som do turbo
+      // RPM normalizado em [0..1+] do idle ao redline do motor selecionado.
+      final t = _char.t(rpm).clamp(0.0, 1.2);
+
+      // Playback rate em faixa NATURAL: evita "chipmunk" no redline.
+      // Em idle toca 25% mais lento, no redline 65% mais rápido.
+      _bufferSource?.playbackRate.value = 0.75 + t * 0.9;
+
+      // Filtro low-pass abre com o RPM: dá a sensação de motor "abrindo".
+      // Idle ≈ 600 Hz, redline ≈ 6 kHz. Pedal adiciona até +1 kHz pra brilho.
+      _sampleFilter!.frequency.value =
+          (600 + t * 5400 + throttle * 1000).clamp(500.0, 8000.0);
+      // Resonância sobe um pouco com o RPM pra dar mordida no alto.
+      _sampleFilter!.Q.value = (0.5 + t * 0.8).clamp(0.5, 1.5);
+
+      // Carros turbo: mistura o assobio sintético por cima da gravação real,
+      // já que a gravação que temos é de outro motor (não tem o whistle dele).
+      if (_char.turbo) {
+        _whistle!.frequency.value = (1800 + rpm * 0.5).clamp(1500.0, 6000.0);
+        // Mais sutil quando há sample: só uma camada de cor.
+        _whistleGain!.gain.value =
+            (throttle * throttle * 0.025).clamp(0.0, 0.03);
+      } else {
+        _whistleGain!.gain.value = 0;
+      }
       return;
     }
 
-    // Síntese: assobio de turbo + frequência de combustão por cilindros.
+    // Síntese (fallback): osciladores + assobio.
     if (_char.turbo) {
       _whistle!.frequency.value = (1800 + rpm * 0.6).clamp(1500.0, 6500.0);
       _whistleGain!.gain.value = (throttle * throttle * 0.04).clamp(0.0, 0.05);
