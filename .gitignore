@@ -12,3 +12,6 @@ desktop.ini
 **/key.properties
 **/*.jks
 **/*.keystore
+
+# Diretório local de teste do build web (não versionar)
+/_pages_test/
