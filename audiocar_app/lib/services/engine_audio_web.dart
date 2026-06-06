@@ -1,6 +1,5 @@
 import 'dart:js_interop';
 
-import 'package:flutter/services.dart' show rootBundle;
 import 'package:web/web.dart' as web;
 
 import 'engine_audio_interface.dart';
@@ -115,8 +114,18 @@ class WebEngineAudio implements EngineAudio {
     }
 
     try {
-      final data = await rootBundle.load(assetPath);
-      final buffer = await ctx.decodeAudioData(data.buffer.toJS).toDart;
+      // No web, vamos direto pelo fetch (mais confiável que rootBundle.load em
+      // release builds, que serializa assets num bundle compartilhado e podia
+      // devolver um ByteData vazio neste fluxo).
+      // O fetch relativo respeita o <base href> da página (ex.: /audiocar/).
+      // Flutter publica assets em 'assets/<path>', então prefixamos.
+      final url = 'assets/$assetPath';
+      final response = await web.window.fetch(url.toJS).toDart;
+      if (!response.ok) {
+        throw StateError('HTTP ${response.status} para $assetPath');
+      }
+      final ab = await response.arrayBuffer().toDart;
+      final buffer = await ctx.decodeAudioData(ab).toDart;
       final src = ctx.createBufferSource();
       src.buffer = buffer;
       src.loop = true;
