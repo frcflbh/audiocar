@@ -1,0 +1,60 @@
+name: Deploy Web (GitHub Pages)
+
+# Roda a cada push em main e também sob demanda pela aba Actions.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Necessário para o action-pages publicar.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Só um deploy por vez; cancela em andamento se chegar um novo.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: audiocar_app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.44.1
+          cache: true
+
+      - name: Dependências
+        run: flutter pub get
+
+      - name: Build web (release)
+        # base-href "/<nome-do-repo>/" para o app funcionar em
+        # https://<usuario>.github.io/<nome-do-repo>/
+        run: |
+          flutter build web --release \
+            --base-href "/${{ github.event.repository.name }}/" \
+            --pwa-strategy none
+
+      - name: Empacotar artefato do Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: audiocar_app/build/web
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Publicar no GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

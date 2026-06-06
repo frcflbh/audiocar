@@ -25,9 +25,13 @@ class SoundCatalogService {
     packs = (json['packs'] as List)
         .map((e) => SoundPack.fromJson(e as Map<String, dynamic>))
         .toList();
-    profiles = (json['profiles'] as List)
+    final parsed = (json['profiles'] as List)
         .map((e) => EngineProfile.fromJson(e as Map<String, dynamic>))
         .toList();
+    // Destaca os veículos reais (pack "legends") no topo da garagem.
+    final legends = parsed.where((p) => p.packId == 'legends').toList();
+    final others = parsed.where((p) => p.packId != 'legends').toList();
+    profiles = [...legends, ...others];
   }
 
   SoundPack? packById(String id) {

@@ -43,6 +43,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   double _displayRpm = RpmModel.idleRpm;
 
   bool _audioReady = false;
+  bool _audioMuted = false;
   String _status = 'Inicializando…';
   SpeedOrigin _origin = SpeedOrigin.demo;
 
@@ -81,6 +82,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       cylinders: profile.cylinders,
       turbo: profile.isTurbo,
     ));
+    // Gravação real do motor (se houver); senão, síntese.
+    _engine.setSample(profile.sampleAsset, profile.sampleRefRpm);
     if (notify && mounted) setState(() {});
   }
 
@@ -253,12 +256,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
   /// Inicializa o motor de áudio a partir de um gesto do usuário.
   /// Atende à política de autoplay dos navegadores e é inofensivo no mobile.
   Future<void> _enableAudio() async {
-    if (_audioReady) return;
+    if (_audioReady) {
+      // Já inicializado: só garante que não está mudo.
+      if (_audioMuted) {
+        _audioMuted = false;
+        _engine.setMuted(false);
+        if (mounted) {
+          setState(() => _status = 'Áudio ativo · $_modeLabel');
+        }
+      }
+      return;
+    }
     try {
       await _engine.init();
       if (!mounted) return;
       setState(() {
         _audioReady = true;
+        _audioMuted = false;
         _status = 'Áudio ativo · $_modeLabel';
       });
     } catch (e, st) {
@@ -266,6 +280,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (!mounted) return;
       setState(() => _status = 'Áudio indisponível: $e');
     }
+  }
+
+  /// Alterna entre ativar e silenciar o áudio (toggle do botão).
+  Future<void> _toggleAudio() async {
+    if (!_audioReady) {
+      await _enableAudio();
+      return;
+    }
+    setState(() {
+      _audioMuted = !_audioMuted;
+      _engine.setMuted(_audioMuted);
+      _status = _audioMuted
+          ? 'Áudio silenciado'
+          : 'Áudio ativo · $_modeLabel';
+    });
   }
 
   Future<void> _attachSource(SpeedSource source, SpeedOrigin origin) async {
@@ -549,10 +578,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Container(height: 2, width: 28, color: CockpitColors.accent),
           const Spacer(),
           _navButton(
-            icon: _audioReady ? Icons.volume_up : Icons.volume_off,
-            label: 'Áudio',
-            active: _audioReady,
-            onTap: _enableAudio,
+            icon: (_audioReady && !_audioMuted)
+                ? Icons.volume_up
+                : Icons.volume_off,
+            label: (_audioReady && !_audioMuted) ? 'Mudo' : 'Áudio',
+            active: _audioReady && !_audioMuted,
+            onTap: _toggleAudio,
           ),
           const SizedBox(height: 14),
           _navButton(

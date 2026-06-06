@@ -29,6 +29,15 @@ abstract class EngineAudio {
   /// Define o caráter sonoro do motor selecionado (timbre por carro).
   void setCharacter(EngineSoundCharacter character);
 
+  /// Define a gravação real do motor a ser usada (loop, com pitch pelo RPM).
+  /// Se [assetPath] for nulo ou falhar, usa a síntese como fallback.
+  /// [refRpm] é o RPM aproximado da gravação (onde playbackRate = 1).
+  void setSample(String? assetPath, double refRpm);
+
+  /// Silencia/dessilencia o áudio sem perder o contexto.
+  /// Útil para um toggle de "ligar/desligar áudio" pela UI.
+  void setMuted(bool muted);
+
   /// Atualiza pitch (RPM) e volume (aceleração).
   void update({required double rpm, required double throttle});
 

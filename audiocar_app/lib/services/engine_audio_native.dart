@@ -26,14 +26,12 @@ class SoLoudEngineAudio implements EngineAudio {
   // à frequência de combustão do motor). Ver _buildEngineWav.
   static const double _synthRefRpm = 1500;
 
-  /// Sample de motor real (opcional). Se presente, é usado no lugar da síntese.
-  static const String _sampleAsset = 'assets/audio/engine_loop.wav';
-
-  /// RPM aproximado em que o sample real foi gravado (ajuste conforme o arquivo).
-  static const double _sampleRefRpm = 1200;
-
   bool _usingSample = false;
+  bool _muted = false;
+  double _sampleRefRpm = 1200;
   EngineSoundCharacter _char = const EngineSoundCharacter();
+  String? _pendingSample;
+  double _pendingRefRpm = 1200;
 
   @override
   bool get isReady => _ready;
@@ -48,9 +46,39 @@ class SoLoudEngineAudio implements EngineAudio {
   }
 
   Future<void> _reloadSynth() async {
+    await _swapSource(_buildEngineWav());
+  }
+
+  @override
+  void setSample(String? assetPath, double refRpm) {
+    _pendingSample = assetPath;
+    _pendingRefRpm = refRpm;
+    if (_ready) unawaited(_applySample(assetPath, refRpm));
+  }
+
+  Future<void> _applySample(String? assetPath, double refRpm) async {
+    Uint8List bytes;
+    if (assetPath == null) {
+      _usingSample = false;
+      bytes = _buildEngineWav();
+    } else {
+      try {
+        final data = await rootBundle.load(assetPath);
+        bytes =
+            data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+        _usingSample = true;
+        _sampleRefRpm = refRpm;
+      } catch (_) {
+        _usingSample = false;
+        bytes = _buildEngineWav();
+      }
+    }
+    await _swapSource(bytes);
+  }
+
+  Future<void> _swapSource(Uint8List bytes) async {
     final oldHandle = _handle;
     final oldSource = _source;
-    final bytes = _buildEngineWav();
     _source = await _soloud.loadMem('audiocar_engine', bytes);
     _handle = await _soloud.play(_source!, looping: true, volume: 0.0);
     if (oldHandle != null) await _soloud.stop(oldHandle);
@@ -71,26 +99,34 @@ class SoLoudEngineAudio implements EngineAudio {
       if (!already) rethrow;
     }
 
-    // Tenta usar um sample real; se não houver, cai na síntese procedural.
-    Uint8List bytes;
-    try {
-      final data = await rootBundle.load(_sampleAsset);
-      bytes = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
-      _usingSample = true;
-    } catch (_) {
-      bytes = _buildEngineWav();
-      _usingSample = false;
-    }
-
-    _source = await _soloud.loadMem('audiocar_engine', bytes);
+    // Síntese por padrão; a gravação real (se houver) é aplicada via setSample.
+    _source = await _soloud.loadMem('audiocar_engine', _buildEngineWav());
     _handle = await _soloud.play(_source!, looping: true, volume: 0.0);
+    _usingSample = false;
     _ready = true;
+
+    if (_pendingSample != null) {
+      await _applySample(_pendingSample, _pendingRefRpm);
+    }
+  }
+
+  @override
+  void setMuted(bool muted) {
+    _muted = muted;
+    final handle = _handle;
+    if (_ready && handle != null && muted) {
+      _soloud.setVolume(handle, 0);
+    }
   }
 
   @override
   void update({required double rpm, required double throttle}) {
     final handle = _handle;
     if (!_ready || handle == null) return;
+    if (_muted) {
+      _soloud.setVolume(handle, 0);
+      return;
+    }
     final double refRpm = _usingSample ? _sampleRefRpm : _synthRefRpm;
     final double playSpeed = (rpm / refRpm).clamp(0.4, 4.5);
     _soloud.setRelativePlaySpeed(handle, playSpeed);
